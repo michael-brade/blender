@@ -56,6 +56,13 @@ def draw_segments(context, myobj, op, region, rv3d):
         ovrfsize = scene.measureit_ovr_font
         ovrline = scene.measureit_ovr_width
         units = scene.measureit_units
+
+        # draw antialiased lines
+        bgl.glEnable(bgl.GL_LINE_SMOOTH)
+        bgl.glHint(bgl.GL_LINE_SMOOTH_HINT, bgl.GL_NICEST)
+        bgl.glEnable(bgl.GL_BLEND)
+        bgl.glBlendFunc(bgl.GL_SRC_ALPHA, bgl.GL_ONE_MINUS_SRC_ALPHA)
+
         # --------------------
         # Scene Scale
         # --------------------
@@ -490,20 +497,25 @@ def draw_segments(context, myobj, op, region, rv3d):
                             or ms.gltype == 6 or ms.gltype == 7:  # Origin and Links
                         draw_arrow(screen_point_ap1, screen_point_bp1, a_size, a_type, b_type)
 
-                    if ms.gltype == 9:  # Angle
-                        dist, distloc = distance(an_p1, an_p2)
-                        mp1 = interpolate3d(an_p1, an_p2, fabs(dist / 1.1))
-
-                        dist, distloc = distance(an_p3, an_p2)
-                        mp2 = interpolate3d(an_p3, an_p2, fabs(dist / 1.1))
-
+                    if ms.gltype == 9:  # Angle                   
+                        dist12, distloc = distance(an_p1, an_p2)
+                        dist32, distloc = distance(an_p3, an_p2)
+                        radius = min(dist12,  dist32) / 10
+      
+                        pv1 = Vector((an_p1[0], an_p1[1], an_p1[2]))
+                        pv2 = Vector((an_p2[0], an_p2[1], an_p2[2]))
+                        pv3 = Vector((an_p3[0], an_p3[1], an_p3[2]))
+                        
+                        mp1 = pv2 + (pv1 - pv2).normalized() * radius
+                        mp2 = pv2 + (pv3 - pv2).normalized() * radius
+                                               
                         screen_point_an_p1 = get_2d_point(region, rv3d, mp1)
                         screen_point_an_p2 = get_2d_point(region, rv3d, an_p2)
                         screen_point_an_p3 = get_2d_point(region, rv3d, mp2)
 
                         draw_line(screen_point_an_p1, screen_point_an_p2)
                         draw_line(screen_point_an_p2, screen_point_an_p3)
-                        draw_line(screen_point_an_p1, screen_point_an_p3)
+                        draw_arc(pv2, mp1, mp2, radius * 0.75, region, rv3d)
 
                     if ms.gltype == 11:  # arc
                         # draw line from center of arc second point
@@ -847,6 +859,36 @@ def draw_line(v1, v2):
             bgl.glEnd()
     except:
         pass
+
+# -------------------------------------------------------------
+# calculate an arc with the given radius in 3D and draw it in
+# 2D space
+#
+# The arc starts at vector v1 - vc and ends at vector v2 - vc.
+# -------------------------------------------------------------
+def draw_arc(vc, v1, v2, radius, region, rv3d):
+    # noinspection PyBroadException
+    try:
+        if vc is not None and v1 is not None and v2 is not None:
+            va = v1 - vc
+            vb = v2 - vc
+
+            s1 = get_2d_point(region, rv3d, v1)
+            s2 = get_2d_point(region, rv3d, v2)
+            
+            bgl.glBegin(bgl.GL_LINE_STRIP)
+            bgl.glVertex2f(*s1)
+            
+            for step in range(0, 21):
+                vdest = va.slerp(vb, 0.05 * step).normalized() * radius
+                cur = get_2d_point(region, rv3d, vc + vdest)
+                bgl.glVertex2f(*cur)
+                
+            bgl.glVertex2f(*s2)            
+            bgl.glEnd()
+    except:
+        pass
+
 
 
 # -------------------------------------------------------------
